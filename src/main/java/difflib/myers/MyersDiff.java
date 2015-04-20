@@ -75,11 +75,21 @@ import java.util.List;
  * @param T The type of the compared elements in the 'lines'.
  */
 public class MyersDiff<T> implements DiffAlgorithm<T> {
-    
-	/**	Default equalizer. */
-	private final Equalizer<T> DEFAULT_EQUALIZER = new Equalizer<T>() {
+  /** Default equalizer. */
+  private final Equalizer<T> DEFAULT_EQUALIZER = new Equalizer<T>() {
         public boolean equals(final T original, final T revised) {
-            return original.equals(revised);
+            if (original == null && revised == null) {
+                return true;
+            }
+            if (original != null) {
+                return original.equals(revised);
+            }
+            return false;
+        }
+
+        @Override
+        public boolean skip(T original) {
+            return false;
         }
     };
 
@@ -295,5 +305,8 @@ public class MyersDiff<T> implements DiffAlgorithm<T> {
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
     }
-
+    
+    public Equalizer<T> getEqualizer() {
+        return equalizer;
+    }
 }

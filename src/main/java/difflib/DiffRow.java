@@ -41,7 +41,7 @@ public class DiffRow {
     }
     
     public static enum Tag {
-        INSERT, DELETE, CHANGE, EQUAL
+        INSERT, DELETE, CHANGE, EQUAL, SKIP
     }
     
     /**

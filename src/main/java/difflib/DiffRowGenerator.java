@@ -71,6 +71,11 @@ public class DiffRowGenerator {
         public boolean equals(String original, String revised) {
             return Objects.equals(original, revised);
         }
+
+        @Override
+        public boolean skip(String original) {
+            return false;
+        }
     });
 
     private final boolean showInlineDiffs;
@@ -331,6 +336,9 @@ public class DiffRowGenerator {
         int orgEndPos = 0;
         int revEndPos = 0;
         final List<Delta<String>> deltaList = patch.getDeltas();
+
+        Equalizer<String> equalizer = diffAlgorithm.getEqualizer();
+
         for (int i = 0; i < deltaList.size(); i++) {
             Delta<String> delta = deltaList.get(i);
             Chunk<String> orig = delta.getOriginal();
@@ -345,14 +353,19 @@ public class DiffRowGenerator {
                 rev.setLines(StringUtills.wrapText(rev.getLines(), this.columnWidth));
             }
             // catch the equal prefix for each chunk
-            copyEqualsLines(diffRows, original, orgEndPos, orig.getPosition(), revised, revEndPos, rev.getPosition());
+            copyEqualsLines(equalizer, diffRows, original, orgEndPos, orig.getPosition(), revised, revEndPos,
+                    rev.getPosition());
 
             // Inserted DiffRow
             if (delta.getClass() == InsertDelta.class) {
                 orgEndPos = orig.last() + 1;
                 revEndPos = rev.last() + 1;
                 for (String line : rev.getLines()) {
-                    diffRows.add(new DiffRow(Tag.INSERT, defaultString, line));
+                    if (equalizer.skip(line)) {
+                        diffRows.add(new DiffRow(Tag.SKIP, defaultString, line));
+                    } else {
+                        diffRows.add(new DiffRow(Tag.INSERT, defaultString, line));
+                    }
                 }
                 continue;
             }
@@ -362,7 +375,11 @@ public class DiffRowGenerator {
                 orgEndPos = orig.last() + 1;
                 revEndPos = rev.last() + 1;
                 for (String line : orig.getLines()) {
-                    diffRows.add(new DiffRow(Tag.DELETE, line, defaultString));
+                    if (equalizer.skip(line)) {
+                        diffRows.add(new DiffRow(Tag.SKIP, line, defaultString));
+                    } else {
+                        diffRows.add(new DiffRow(Tag.DELETE, line, defaultString));
+                    }
                 }
                 continue;
             }
@@ -373,17 +390,19 @@ public class DiffRowGenerator {
             // the changed size is match
             if (orig.size() == rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j), rev.getLines().get(j)));
+                    addChangeDiffRow(equalizer, diffRows, orig.getLines().get(j), rev.getLines().get(j), defaultString);
                 }
             } else if (orig.size() > rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j),
-                            rev.getLines().size() > j ? (String) rev.getLines().get(j) : defaultString));
+                    final String orgLine = orig.getLines().get(j);
+                    final String revLine = rev.getLines().size() > j ? rev.getLines().get(j) : defaultString;
+                    addChangeDiffRow(equalizer, diffRows, orgLine, revLine, defaultString);
                 }
             } else {
                 for (int j = 0; j < rev.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().size() > j ? orig.getLines().get(j)
-                            : defaultString, rev.getLines().get(j)));
+                    final String orgLine = orig.getLines().size() > j ? orig.getLines().get(j) : defaultString;
+                    final String revLine = rev.getLines().get(j);
+                    addChangeDiffRow(equalizer, diffRows, orgLine, revLine, defaultString);
                 }
             }
             orgEndPos = orig.last() + 1;
@@ -391,12 +410,29 @@ public class DiffRowGenerator {
         }
 
         // Copy the final matching chunk if any.
-        copyEqualsLines(diffRows, original, orgEndPos, original.size(), revised, revEndPos, revised.size());
+        copyEqualsLines(equalizer, diffRows, original, orgEndPos, original.size(), revised, revEndPos, revised.size());
         return diffRows;
     }
 
-    protected void copyEqualsLines(List<DiffRow> diffRows, List<String> original, int originalStartPos,
-            int originalEndPos, List<String> revised, int revisedStartPos, int revisedEndPos) {
+    private static final void addChangeDiffRow(Equalizer<String> equalizer, List<DiffRow> diffRows, String orgLine,
+            String revLine, String defaultString) {
+        boolean skipOrg = equalizer.skip(orgLine);
+        boolean skipRev = equalizer.skip(revLine);
+        if (skipOrg && skipRev) {
+            diffRows.add(new DiffRow(Tag.SKIP, orgLine, revLine));
+        } else if (skipOrg) {
+            diffRows.add(new DiffRow(Tag.SKIP, orgLine, defaultString));
+            diffRows.add(new DiffRow(Tag.CHANGE, defaultString, revLine));
+        } else if (skipRev) {
+            diffRows.add(new DiffRow(Tag.CHANGE, orgLine, defaultString));
+            diffRows.add(new DiffRow(Tag.SKIP, defaultString, revLine));
+        } else {
+            diffRows.add(new DiffRow(Tag.CHANGE, orgLine, revLine));
+        }
+    }
+
+    protected void copyEqualsLines(Equalizer<String> equalizer, List<DiffRow> diffRows, List<String> original,
+            int originalStartPos, int originalEndPos, List<String> revised, int revisedStartPos, int revisedEndPos) {
         String[][] lines = new String[originalEndPos - originalStartPos][2];
         int idx = 0;
         for (String line : original.subList(originalStartPos, originalEndPos)) {
@@ -407,7 +443,13 @@ public class DiffRowGenerator {
             lines[idx++][1] = line;
         }
         for (String[] line : lines) {
-            diffRows.add(new DiffRow(Tag.EQUAL, line[0], line[1]));
+            String orgLine = line[0];
+            String revLine = line[1];
+            if (equalizer.skip(orgLine) && equalizer.skip(revLine)) {
+                diffRows.add(new DiffRow(Tag.SKIP, orgLine, revLine));
+            } else {
+                diffRows.add(new DiffRow(Tag.EQUAL, orgLine, revLine));
+            }
         }
     }
 

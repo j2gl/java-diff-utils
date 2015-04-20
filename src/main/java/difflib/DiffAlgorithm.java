@@ -15,7 +15,9 @@
  */
 package difflib;
 
-import java.util.*;
+import java.util.List;
+
+import difflib.myers.Equalizer;
 
 /**
  * The general interface for computing diffs between two lists of elements of type T. 
@@ -44,4 +46,10 @@ public interface DiffAlgorithm<T> {
      * @return The patch representing the diff of the given sequences. Never {@code null}.
      */
     public Patch<T> diff(List<T> original, List<T> revised);
+    
+    /**
+     * Get equalizer use to compare data.
+     * @return
+     */
+    public Equalizer<T> getEqualizer();
 }
