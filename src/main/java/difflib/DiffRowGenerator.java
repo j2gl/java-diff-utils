@@ -15,10 +15,12 @@
  */
 package difflib;
 
-import difflib.DiffRow.Tag;
-import difflib.myers.Equalizer;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -26,6 +28,9 @@ import javax.annotation.Nullable;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
+
+import difflib.DiffRow.Tag;
+import difflib.myers.Equalizer;
 
 /**
  * This class for generating DiffRows for side-by-sidy view.
@@ -49,13 +54,24 @@ import com.google.common.collect.Lists;
   */
 public class DiffRowGenerator {
     private static final Joiner LF_JOINER = Joiner.on("\n");
-
+    
+    private static final String DEFAULT_TAG_DELETE = "del";
+    private static final String DEFAULT_TAG_INSERT = "ins";
+    private static final String DEFAULT_TAG_CHANGE = "span";
+    private static final String DEFAULT_CSSCLASS_DELETE = null;
+    private static final String DEFAULT_CSSCLASS_INSERT = null;
+    private static final String DEFAULT_CSSCLASS_CHANGE = "change";
+    
     private final boolean showInlineDiffs;
     private final boolean ignoreWhiteSpaces;
-    private final String InlineOldTag;
-    private final String InlineNewTag;
-    private final String InlineOldCssClass;
-    private final String InlineNewCssClass;
+    private final String inlineOriginDeleteTag;
+		private final String inlineRevisedInsertTag;
+		private final String inlineOriginChangeTag;
+    private final String inlineRevisedChangeTag;
+    private final String inlineOriginDeleteCssClass;
+		private final String inlineRevisedInsertCssClass;
+		private final String inlineOriginChangeCssClass;
+    private final String inlineRevisedChangeCssClass;
     private final int columnWidth;
     @Nullable
     private final String defaultString;
@@ -69,11 +85,15 @@ public class DiffRowGenerator {
     public static class Builder {
         private boolean showInlineDiffs = false;
         private boolean ignoreWhiteSpaces = false;
-        private String InlineOldTag = "span";
-        private String InlineNewTag = "span";
-        private String InlineOldCssClass = "editOldInline";
-        private String InlineNewCssClass = "editNewInline";
-        private int columnWidth = 80;
+        private String inlineOriginDeleteTag = DEFAULT_TAG_DELETE;
+    		private String inlineOriginChangeTag = DEFAULT_TAG_CHANGE;
+    		private String inlineRevisedInsertTag = DEFAULT_TAG_INSERT;
+        private String inlineRevisedChangeTag = DEFAULT_TAG_CHANGE;
+        private String inlineOriginDeleteCssClass = DEFAULT_CSSCLASS_DELETE;
+        private String inlineRevisedInsertCssClass = DEFAULT_CSSCLASS_INSERT;
+        private String inlineOriginChangeCssClass = DEFAULT_CSSCLASS_CHANGE;
+        private String inlineRevisedChangeCssClass = DEFAULT_CSSCLASS_CHANGE;
+        private int columnWidth = -1;
         @Nullable
         private String defaultString = "";
         private Equalizer<String> stringEqualizer = new Equalizer<String>() {
@@ -104,53 +124,96 @@ public class DiffRowGenerator {
 
         /**
          * Set the tag used for displaying changes in the original text.
-         * @param tag the tag to set. Without angle brackets. Default: span.
-         * @return builder with configured ignoreBlankLines parameter
+         * @param tag the tag to set. Without angle brackets. Default: {@value #DEFAULT_TAG_DELETE}.
+         * @return builder with configured inlineOriginDeleteTag parameter
+         * @deprecated Use {@link #inlineOriginDeleteTag(String)}
          */
+        @Deprecated
         public Builder InlineOldTag(String tag) {
-            InlineOldTag = tag;
+            inlineOriginDeleteTag = tag;
+            return this;
+        }
+
+        /**
+         * Set the tag used for displaying delete data in the original text.
+         * @param tag the tag to set. Without angle brackets. Default: {@value #DEFAULT_TAG_DELETE}.
+         * @return builder with configured inlineOriginDeleteTag parameter
+         */
+        public Builder inlineOriginDeleteTag(String tag) {
+            inlineOriginDeleteTag = tag;
             return this;
         }
 
         /**
          * Set the tag used for displaying changes in the revised text.
-         * @param tag the tag to set. Without angle brackets. Default: span.
-         * @return builder with configured ignoreBlankLines parameter
+         * @param tag the tag to set. Without angle brackets. Default: {@value #DEFAULT_TAG_INSERT}.
+         * @return builder with configured inlineRevisedInsertTag parameter
+         * @deprecated Use {@link #inlineRevisedInsertTag(String)}
          */
         public Builder InlineNewTag(String tag) {
-            InlineNewTag = tag;
+            inlineRevisedInsertTag = tag;
+            return this;
+        }
+
+        /**
+         * Set the tag used for displaying changes in the revised text.
+         * @param tag the tag to set. Without angle brackets. Default: {@value #DEFAULT_TAG_INSERT}.
+         * @return builder with configured inlineRevisedInsertTag parameter
+         */
+        public Builder inlineRevisedInsertTag(String tag) {
+            inlineRevisedInsertTag = tag;
             return this;
         }
 
         /**
          * Set the css class used for displaying changes in the original text.
-         * @param cssClass the tag to set. Without any quotes, just word. Default: editOldInline.
-         * @return builder with configured ignoreBlankLines parameter
+         * @param cssClass the tag to set. Without any quotes, just word. Default: {@value #DEFAULT_CSSCLASS_DELETE}.
+         * @return builder with configured inlineOriginDeleteCssClass parameter
+         * @deprecated Use {@link #inlineOriginDeleteCssClass(String)}
          */
         public Builder InlineOldCssClass(String cssClass) {
-            InlineOldCssClass = cssClass;
+            inlineOriginDeleteCssClass = cssClass;
+            return this;
+        }
+
+        /**
+         * Set the css class used for displaying delete data in the original text.
+         * @param cssClass the tag to set. Without any quotes, just word. Default: {@value #DEFAULT_CSSCLASS_DELETE}.
+         * @return builder with configured inlineOriginDeleteCssClass parameter
+         */
+        public Builder inlineOriginDeleteCssClass(String cssClass) {
+            inlineOriginDeleteCssClass = cssClass;
             return this;
         }
 
         /**
          * Set the css class used for displaying changes in the revised text.
-         * @param cssClass the tag to set. Without any quotes, just word. Default: editNewInline.
-         * @return builder with configured ignoreBlankLines parameter
+         * @param cssClass the tag to set. Without any quotes, just word. Default: {@value #DEFAULT_CSSCLASS_INSERT}.
+         * @return builder with configured inlineRevisedInsertCssClass parameter
+         * @deprecated Use {@link #inlineRevisedInsertCssClass(String)}
          */
         public Builder InlineNewCssClass(String cssClass) {
-            InlineNewCssClass = cssClass;
+            inlineRevisedInsertCssClass = cssClass;
+            return this;
+        }
+        
+        /**
+         * Set the css class used for displaying insert data in the revised text.
+         * @param cssClass the tag to set. Without any quotes, just word. Default: {@value #DEFAULT_CSSCLASS_INSERT}.
+         * @return builder with configured inlineRevisedInsertCssClass parameter
+         */
+        public Builder inlineRevisedInsertCssClass(String cssClass) {
+            inlineRevisedInsertCssClass = cssClass;
             return this;
         }
 
         /**
          * Set the column with of generated lines of original and revised texts.
-         * @param width the width to set. Making it < 0 doesn't have any sense. Default 80.
-         * @return builder with configured ignoreBlankLines parameter
+         * @param width the width to set. Making it < 0 disable line breaking.
+         * @return builder with configured columnWidth parameter
          */
         public Builder columnWidth(int width) {
-            if (width > 0) {
-                columnWidth = width;
-            }
+            columnWidth = width;
             return this;
         }
 
@@ -182,12 +245,21 @@ public class DiffRowGenerator {
 
     private DiffRowGenerator(Builder builder) {
         showInlineDiffs = builder.showInlineDiffs;
-        ignoreWhiteSpaces = builder.ignoreWhiteSpaces; //
-        InlineOldTag = builder.InlineOldTag;
-        InlineNewTag = builder.InlineNewTag;
-        InlineOldCssClass = builder.InlineOldCssClass;
-        InlineNewCssClass = builder.InlineNewCssClass;
-        columnWidth = builder.columnWidth; //
+        ignoreWhiteSpaces = builder.ignoreWhiteSpaces;
+        
+        inlineOriginDeleteTag = builder.inlineOriginDeleteTag;
+        inlineOriginDeleteCssClass = builder.inlineOriginDeleteCssClass;
+
+        inlineOriginChangeTag = builder.inlineOriginChangeTag;
+    		inlineOriginChangeCssClass = builder.inlineOriginChangeCssClass;
+
+    		inlineRevisedInsertTag = builder.inlineRevisedInsertTag;
+    		inlineRevisedInsertCssClass = builder.inlineRevisedInsertCssClass;
+
+    		inlineRevisedChangeTag = builder.inlineRevisedChangeTag;
+        inlineRevisedChangeCssClass = builder.inlineRevisedChangeCssClass;
+        
+        columnWidth = builder.columnWidth;
         defaultString = builder.defaultString;
         equalizer = builder.stringEqualizer;
     }
@@ -233,9 +305,10 @@ public class DiffRowGenerator {
         revised = StringUtills.normalize(revised);
 
         // wrap to the column width
-        original = StringUtills.wrapText(original, this.columnWidth);
-        revised = StringUtills.wrapText(revised, this.columnWidth);
-
+    		if (columnWidth > 0) {
+	        original = StringUtills.wrapText(original, this.columnWidth);
+	        revised = StringUtills.wrapText(revised, this.columnWidth);
+    		}
         List<DiffRow> diffRows = new ArrayList<DiffRow>();
         int endPos = 0;
         final List<Delta<String>> deltaList = patch.getDeltas();
@@ -245,12 +318,13 @@ public class DiffRowGenerator {
             Chunk<String> rev = delta.getRevised();
 
             // We should normalize and wrap lines in deltas too.
-            orig.setLines(StringUtills.normalize((List<String>) orig.getLines()));
-            rev.setLines(StringUtills.normalize((List<String>) rev.getLines()));
+            orig.setLines(StringUtills.normalize(orig.getLines()));
+            rev.setLines(StringUtills.normalize(rev.getLines()));
 
-            orig.setLines(StringUtills.wrapText((List<String>) orig.getLines(), this.columnWidth));
-            rev.setLines(StringUtills.wrapText((List<String>) rev.getLines(), this.columnWidth));
-
+      			if (columnWidth > 0) {
+      				orig.setLines(StringUtills.wrapText(orig.getLines(), this.columnWidth));
+      				rev.setLines(StringUtills.wrapText(rev.getLines(), this.columnWidth));
+      			}
             // catch the equal prefix for each chunk
             for (String line : original.subList(endPos, orig.getPosition())) {
                 diffRows.add(new DiffRow(Tag.EQUAL, line, line));
@@ -259,7 +333,7 @@ public class DiffRowGenerator {
             // Inserted DiffRow
             if (delta.getClass().equals(InsertDelta.class)) {
                 endPos = orig.last() + 1;
-                for (String line : (List<String>) rev.getLines()) {
+                for (String line : rev.getLines()) {
                     diffRows.add(new DiffRow(Tag.INSERT, defaultString, line));
                 }
                 continue;
@@ -268,7 +342,7 @@ public class DiffRowGenerator {
             // Deleted DiffRow
             if (delta.getClass().equals(DeleteDelta.class)) {
                 endPos = orig.last() + 1;
-                for (String line : (List<String>) orig.getLines()) {
+                for (String line : orig.getLines()) {
                     diffRows.add(new DiffRow(Tag.DELETE, line, defaultString));
                 }
                 continue;
@@ -280,18 +354,18 @@ public class DiffRowGenerator {
             // the changed size is match
             if (orig.size() == rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, (String) orig.getLines().get(j),
-                            (String) rev.getLines().get(j)));
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j),
+                            rev.getLines().get(j)));
                 }
             } else if (orig.size() > rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, (String) orig.getLines().get(j), rev
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j), rev
                             .getLines().size() > j ? (String) rev.getLines().get(j) : defaultString));
                 }
             } else {
                 for (int j = 0; j < rev.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().size() > j ? (String) orig
-                            .getLines().get(j) : defaultString, (String) rev.getLines().get(j)));
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().size() > j ? orig
+                            .getLines().get(j) : defaultString, rev.getLines().get(j)));
                 }
             }
             endPos = orig.last() + 1;
@@ -309,8 +383,8 @@ public class DiffRowGenerator {
      * @param delta the given delta
      */
     private void addInlineDiffs(Delta<String> delta) {
-        List<String> orig = (List<String>) delta.getOriginal().getLines();
-        List<String> rev = (List<String>) delta.getRevised().getLines();
+        List<String> orig = delta.getOriginal().getLines();
+        List<String> rev = delta.getRevised().getLines();
         LinkedList<String> origList = new LinkedList<String>();
         for (Character character : LF_JOINER.join(orig).toCharArray()) {
             origList.add(character.toString());
@@ -320,7 +394,6 @@ public class DiffRowGenerator {
             revList.add(character.toString());
         }
         List<Delta<String>> inlineDeltas = DiffUtils.diff(origList, revList).getDeltas();
-        if (inlineDeltas.size() < 3) {
             Collections.reverse(inlineDeltas);
             for (Delta<String> inlineDelta : inlineDeltas) {
                 Chunk<String> inlineOrig = inlineDelta.getOriginal();
@@ -328,16 +401,16 @@ public class DiffRowGenerator {
                 if (inlineDelta.getClass().equals(DeleteDelta.class)) {
                     origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig
                             .getPosition()
-                            + inlineOrig.size() + 1, this.InlineOldTag, this.InlineOldCssClass);
+                            + inlineOrig.size() + 1, this.inlineOriginDeleteTag, this.inlineOriginDeleteCssClass);
                 } else if (inlineDelta.getClass().equals(InsertDelta.class)) {
                     revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition()
-                            + inlineRev.size() + 1, this.InlineNewTag, this.InlineNewCssClass);
+                            + inlineRev.size() + 1, this.inlineRevisedInsertTag, this.inlineRevisedInsertCssClass);
                 } else if (inlineDelta.getClass().equals(ChangeDelta.class)) {
                     origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig
                             .getPosition()
-                            + inlineOrig.size() + 1, this.InlineOldTag, this.InlineOldCssClass);
+                            + inlineOrig.size() + 1, this.inlineOriginChangeTag, this.inlineOriginChangeCssClass);
                     revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition()
-                            + inlineRev.size() + 1, this.InlineNewTag, this.InlineNewCssClass);
+                            + inlineRev.size() + 1, this.inlineRevisedChangeTag, this.inlineRevisedChangeCssClass);
                 }
             }
             StringBuilder origResult = new StringBuilder(), revResult = new StringBuilder();
@@ -349,7 +422,6 @@ public class DiffRowGenerator {
             }
             delta.getOriginal().setLines(Arrays.asList(origResult.toString().split("\n")));
             delta.getRevised().setLines(Arrays.asList(revResult.toString().split("\n")));
-        }
     }
 
     /**
@@ -359,8 +431,8 @@ public class DiffRowGenerator {
      * @param tag the tag name without angle brackets, just a word
      * @param cssClass the optional css class
      */
-    public static LinkedList<String> wrapInTag(LinkedList<String> sequence, int startPosition,
-            int endPosition, String tag, String cssClass) {
+    public static LinkedList<String> wrapInTag(LinkedList<String> sequence, int startPosition, int endPosition,
+    		String tag, String cssClass) {
         LinkedList<String> result = (LinkedList<String>) sequence.clone();
         StringBuilder tagBuilder = new StringBuilder();
         tagBuilder.append("<");
