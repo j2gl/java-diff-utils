@@ -21,6 +21,8 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,6 +33,7 @@ import com.google.common.collect.Lists;
 
 import difflib.DiffRow.Tag;
 import difflib.myers.Equalizer;
+import difflib.myers.MyersDiff;
 
 /**
  * This class for generating DiffRows for side-by-sidy view.
@@ -45,37 +48,45 @@ import difflib.myers.Equalizer;
  * ...
  *
  * For instantiating the DiffRowGenerator you should use the its builder. Like in example
+ * 
  * <code>
  *    DiffRowGenerator generator = new DiffRowGenerator.Builder().showInlineDiffs(true).
- *    	ignoreWhiteSpaces(true).columnWidth(100).build();
+ *      ignoreWhiteSpaces(true).columnWidth(100).build();
  * </code>
  *
  * @author <a href="dm.naumenko@gmail.com">Dmitry Naumenko</a>
-  */
+ */
 public class DiffRowGenerator {
-    private static final Joiner LF_JOINER = Joiner.on("\n");
-    
+    private static final String NEW_LINE = "\n";
+    private static final Joiner LF_JOINER = Joiner.on(NEW_LINE);
+    private static final Joiner JOINER = Joiner.on("");
+
     private static final String DEFAULT_TAG_DELETE = "del";
     private static final String DEFAULT_TAG_INSERT = "ins";
     private static final String DEFAULT_TAG_CHANGE = "span";
     private static final String DEFAULT_CSSCLASS_DELETE = null;
     private static final String DEFAULT_CSSCLASS_INSERT = null;
     private static final String DEFAULT_CSSCLASS_CHANGE = "change";
-    
+    private static final DiffAlgorithm<String> DEFAULT_DIFFALGORITHM = new MyersDiff<String>(new Equalizer<String>() {
+        public boolean equals(String original, String revised) {
+            return Objects.equals(original, revised);
+        }
+    });
+
     private final boolean showInlineDiffs;
     private final boolean ignoreWhiteSpaces;
     private final String inlineOriginDeleteTag;
-		private final String inlineRevisedInsertTag;
-		private final String inlineOriginChangeTag;
+    private final String inlineRevisedInsertTag;
+    private final String inlineOriginChangeTag;
     private final String inlineRevisedChangeTag;
     private final String inlineOriginDeleteCssClass;
-		private final String inlineRevisedInsertCssClass;
-		private final String inlineOriginChangeCssClass;
+    private final String inlineRevisedInsertCssClass;
+    private final String inlineOriginChangeCssClass;
     private final String inlineRevisedChangeCssClass;
     private final int columnWidth;
     @Nullable
     private final String defaultString;
-    private final Equalizer<String> equalizer;
+    private final DiffAlgorithm<String> diffAlgorithm;
 
     /**
      * This class used for building the DiffRowGenerator.
@@ -86,8 +97,8 @@ public class DiffRowGenerator {
         private boolean showInlineDiffs = false;
         private boolean ignoreWhiteSpaces = false;
         private String inlineOriginDeleteTag = DEFAULT_TAG_DELETE;
-    		private String inlineOriginChangeTag = DEFAULT_TAG_CHANGE;
-    		private String inlineRevisedInsertTag = DEFAULT_TAG_INSERT;
+        private String inlineOriginChangeTag = DEFAULT_TAG_CHANGE;
+        private String inlineRevisedInsertTag = DEFAULT_TAG_INSERT;
         private String inlineRevisedChangeTag = DEFAULT_TAG_CHANGE;
         private String inlineOriginDeleteCssClass = DEFAULT_CSSCLASS_DELETE;
         private String inlineRevisedInsertCssClass = DEFAULT_CSSCLASS_INSERT;
@@ -96,11 +107,7 @@ public class DiffRowGenerator {
         private int columnWidth = -1;
         @Nullable
         private String defaultString = "";
-        private Equalizer<String> stringEqualizer = new Equalizer<String>() {
-            public boolean equals(String original, String revised) {
-                return Objects.equals(original, revised);
-            }
-        };
+        private DiffAlgorithm<String> diffAlgorithm = DEFAULT_DIFFALGORITHM;
 
         /**
          * Show inline diffs in generating diff rows or not.
@@ -196,7 +203,7 @@ public class DiffRowGenerator {
             inlineRevisedInsertCssClass = cssClass;
             return this;
         }
-        
+
         /**
          * Set the css class used for displaying insert data in the revised text.
          * @param cssClass the tag to set. Without any quotes, just word. Default: {@value #DEFAULT_CSSCLASS_INSERT}.
@@ -229,7 +236,18 @@ public class DiffRowGenerator {
          * @return builder with configured stringEqualizer
          */
         public Builder stringEqualizer(Equalizer<String> stringEqualizer) {
-            this.stringEqualizer = stringEqualizer;
+            this.diffAlgorithm = new MyersDiff<>(stringEqualizer);
+            return this;
+        }
+
+        /**
+         * Set the custom {@link DiffAlgorithm} to use while comparing the lines
+         * of the revisions.
+         * @param stringEqualizer to use (custom one)
+         * @return builder with configured stringEqualizer
+         */
+        public Builder diffAlgorithm(DiffAlgorithm<String> diffAlgorithm) {
+            this.diffAlgorithm = diffAlgorithm;
             return this;
         }
 
@@ -246,22 +264,22 @@ public class DiffRowGenerator {
     private DiffRowGenerator(Builder builder) {
         showInlineDiffs = builder.showInlineDiffs;
         ignoreWhiteSpaces = builder.ignoreWhiteSpaces;
-        
+
         inlineOriginDeleteTag = builder.inlineOriginDeleteTag;
         inlineOriginDeleteCssClass = builder.inlineOriginDeleteCssClass;
 
         inlineOriginChangeTag = builder.inlineOriginChangeTag;
-    		inlineOriginChangeCssClass = builder.inlineOriginChangeCssClass;
+        inlineOriginChangeCssClass = builder.inlineOriginChangeCssClass;
 
-    		inlineRevisedInsertTag = builder.inlineRevisedInsertTag;
-    		inlineRevisedInsertCssClass = builder.inlineRevisedInsertCssClass;
+        inlineRevisedInsertTag = builder.inlineRevisedInsertTag;
+        inlineRevisedInsertCssClass = builder.inlineRevisedInsertCssClass;
 
-    		inlineRevisedChangeTag = builder.inlineRevisedChangeTag;
+        inlineRevisedChangeTag = builder.inlineRevisedChangeTag;
         inlineRevisedChangeCssClass = builder.inlineRevisedChangeCssClass;
-        
+
         columnWidth = builder.columnWidth;
         defaultString = builder.defaultString;
-        equalizer = builder.stringEqualizer;
+        diffAlgorithm = builder.diffAlgorithm;
     }
 
     /**
@@ -274,7 +292,7 @@ public class DiffRowGenerator {
      */
     public List<DiffRow> generateDiffRows(List<String> original, List<String> revised) {
         if (ignoreWhiteSpaces) {
-            Function<String, String> whiteSpaceReplacer = new Function<String, String>(){
+            Function<String, String> whiteSpaceReplacer = new Function<String, String>() {
                 @Override
                 public String apply(String string) {
                     if (string == null) {
@@ -287,7 +305,7 @@ public class DiffRowGenerator {
             original = Lists.transform(original, whiteSpaceReplacer);
             revised = Lists.transform(revised, whiteSpaceReplacer);
         }
-        return generateDiffRows(original, revised, DiffUtils.diff(original, revised, equalizer));
+        return generateDiffRows(original, revised, DiffUtils.diff(original, revised, diffAlgorithm));
     }
 
     /**
@@ -305,12 +323,13 @@ public class DiffRowGenerator {
         revised = StringUtills.normalize(revised);
 
         // wrap to the column width
-    		if (columnWidth > 0) {
-	        original = StringUtills.wrapText(original, this.columnWidth);
-	        revised = StringUtills.wrapText(revised, this.columnWidth);
-    		}
+        if (columnWidth > 0) {
+            original = StringUtills.wrapText(original, this.columnWidth);
+            revised = StringUtills.wrapText(revised, this.columnWidth);
+        }
         List<DiffRow> diffRows = new ArrayList<DiffRow>();
-        int endPos = 0;
+        int orgEndPos = 0;
+        int revEndPos = 0;
         final List<Delta<String>> deltaList = patch.getDeltas();
         for (int i = 0; i < deltaList.size(); i++) {
             Delta<String> delta = deltaList.get(i);
@@ -321,18 +340,17 @@ public class DiffRowGenerator {
             orig.setLines(StringUtills.normalize(orig.getLines()));
             rev.setLines(StringUtills.normalize(rev.getLines()));
 
-      			if (columnWidth > 0) {
-      				orig.setLines(StringUtills.wrapText(orig.getLines(), this.columnWidth));
-      				rev.setLines(StringUtills.wrapText(rev.getLines(), this.columnWidth));
-      			}
-            // catch the equal prefix for each chunk
-            for (String line : original.subList(endPos, orig.getPosition())) {
-                diffRows.add(new DiffRow(Tag.EQUAL, line, line));
+            if (columnWidth > 0) {
+                orig.setLines(StringUtills.wrapText(orig.getLines(), this.columnWidth));
+                rev.setLines(StringUtills.wrapText(rev.getLines(), this.columnWidth));
             }
+            // catch the equal prefix for each chunk
+            copyEqualsLines(diffRows, original, orgEndPos, orig.getPosition(), revised, revEndPos, rev.getPosition());
 
             // Inserted DiffRow
-            if (delta.getClass().equals(InsertDelta.class)) {
-                endPos = orig.last() + 1;
+            if (delta.getClass() == InsertDelta.class) {
+                orgEndPos = orig.last() + 1;
+                revEndPos = rev.last() + 1;
                 for (String line : rev.getLines()) {
                     diffRows.add(new DiffRow(Tag.INSERT, defaultString, line));
                 }
@@ -340,8 +358,9 @@ public class DiffRowGenerator {
             }
 
             // Deleted DiffRow
-            if (delta.getClass().equals(DeleteDelta.class)) {
-                endPos = orig.last() + 1;
+            if (delta.getClass() == DeleteDelta.class) {
+                orgEndPos = orig.last() + 1;
+                revEndPos = rev.last() + 1;
                 for (String line : orig.getLines()) {
                     diffRows.add(new DiffRow(Tag.DELETE, line, defaultString));
                 }
@@ -354,75 +373,87 @@ public class DiffRowGenerator {
             // the changed size is match
             if (orig.size() == rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j),
-                            rev.getLines().get(j)));
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j), rev.getLines().get(j)));
                 }
             } else if (orig.size() > rev.size()) {
                 for (int j = 0; j < orig.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j), rev
-                            .getLines().size() > j ? (String) rev.getLines().get(j) : defaultString));
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().get(j),
+                            rev.getLines().size() > j ? (String) rev.getLines().get(j) : defaultString));
                 }
             } else {
                 for (int j = 0; j < rev.size(); j++) {
-                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().size() > j ? orig
-                            .getLines().get(j) : defaultString, rev.getLines().get(j)));
+                    diffRows.add(new DiffRow(Tag.CHANGE, orig.getLines().size() > j ? orig.getLines().get(j)
+                            : defaultString, rev.getLines().get(j)));
                 }
             }
-            endPos = orig.last() + 1;
+            orgEndPos = orig.last() + 1;
+            revEndPos = rev.last() + 1;
         }
 
         // Copy the final matching chunk if any.
-        for (String line : original.subList(endPos, original.size())) {
-            diffRows.add(new DiffRow(Tag.EQUAL, line, line));
-        }
+        copyEqualsLines(diffRows, original, orgEndPos, original.size(), revised, revEndPos, revised.size());
         return diffRows;
+    }
+
+    protected void copyEqualsLines(List<DiffRow> diffRows, List<String> original, int originalStartPos,
+            int originalEndPos, List<String> revised, int revisedStartPos, int revisedEndPos) {
+        String[][] lines = new String[originalEndPos - originalStartPos][2];
+        int idx = 0;
+        for (String line : original.subList(originalStartPos, originalEndPos)) {
+            lines[idx++][0] = line;
+        }
+        idx = 0;
+        for (String line : revised.subList(revisedStartPos, revisedEndPos)) {
+            lines[idx++][1] = line;
+        }
+        for (String[] line : lines) {
+            diffRows.add(new DiffRow(Tag.EQUAL, line[0], line[1]));
+        }
     }
 
     /**
      * Add the inline diffs for given delta
+     * 
      * @param delta the given delta
      */
     private void addInlineDiffs(Delta<String> delta) {
         List<String> orig = delta.getOriginal().getLines();
         List<String> rev = delta.getRevised().getLines();
-        LinkedList<String> origList = new LinkedList<String>();
-        for (Character character : LF_JOINER.join(orig).toCharArray()) {
-            origList.add(character.toString());
-        }
-        LinkedList<String> revList = new LinkedList<String>();
-        for (Character character : LF_JOINER.join(rev).toCharArray()) {
-            revList.add(character.toString());
-        }
+        LinkedList<String> origList = charArrayToStringList(LF_JOINER.join(orig).toCharArray());
+        LinkedList<String> revList = charArrayToStringList(LF_JOINER.join(rev).toCharArray());
+
         List<Delta<String>> inlineDeltas = DiffUtils.diff(origList, revList).getDeltas();
-            Collections.reverse(inlineDeltas);
-            for (Delta<String> inlineDelta : inlineDeltas) {
-                Chunk<String> inlineOrig = inlineDelta.getOriginal();
-                Chunk<String> inlineRev = inlineDelta.getRevised();
-                if (inlineDelta.getClass().equals(DeleteDelta.class)) {
-                    origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig
-                            .getPosition()
-                            + inlineOrig.size() + 1, this.inlineOriginDeleteTag, this.inlineOriginDeleteCssClass);
-                } else if (inlineDelta.getClass().equals(InsertDelta.class)) {
-                    revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition()
-                            + inlineRev.size() + 1, this.inlineRevisedInsertTag, this.inlineRevisedInsertCssClass);
-                } else if (inlineDelta.getClass().equals(ChangeDelta.class)) {
-                    origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig
-                            .getPosition()
-                            + inlineOrig.size() + 1, this.inlineOriginChangeTag, this.inlineOriginChangeCssClass);
-                    revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition()
-                            + inlineRev.size() + 1, this.inlineRevisedChangeTag, this.inlineRevisedChangeCssClass);
-                }
+        Collections.reverse(inlineDeltas);
+        for (Delta<String> inlineDelta : inlineDeltas) {
+            Chunk<String> inlineOrig = inlineDelta.getOriginal();
+            Chunk<String> inlineRev = inlineDelta.getRevised();
+            if (inlineDelta.getClass().equals(DeleteDelta.class)) {
+                origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig.getPosition() + inlineOrig.size()
+                        + 1, this.inlineOriginDeleteTag, this.inlineOriginDeleteCssClass);
+            } else if (inlineDelta.getClass().equals(InsertDelta.class)) {
+                revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition() + inlineRev.size() + 1,
+                        this.inlineRevisedInsertTag, this.inlineRevisedInsertCssClass);
+            } else if (inlineDelta.getClass().equals(ChangeDelta.class)) {
+                origList = wrapInTag(origList, inlineOrig.getPosition(), inlineOrig.getPosition() + inlineOrig.size()
+                        + 1, this.inlineOriginChangeTag, this.inlineOriginChangeCssClass);
+                revList = wrapInTag(revList, inlineRev.getPosition(), inlineRev.getPosition() + inlineRev.size() + 1,
+                        this.inlineRevisedChangeTag, this.inlineRevisedChangeCssClass);
             }
-            StringBuilder origResult = new StringBuilder(), revResult = new StringBuilder();
-            for (String character : origList) {
-                origResult.append(character);
-            }
-            for (String character : revList) {
-                revResult.append(character);
-            }
-            delta.getOriginal().setLines(Arrays.asList(origResult.toString().split("\n")));
-            delta.getRevised().setLines(Arrays.asList(revResult.toString().split("\n")));
+        }
+
+        delta.getOriginal().setLines(Arrays.asList(JOINER.join(origList).split(NEW_LINE)));
+        delta.getRevised().setLines(Arrays.asList(JOINER.join(revList).split(NEW_LINE)));
     }
+
+    private static final LinkedList<String> charArrayToStringList(char[] cs) {
+        LinkedList<String> result = new LinkedList<String>();
+        for (Character character : cs) {
+            result.add(character.toString());
+        }
+        return result;
+    }
+
+    private static final Pattern PATTERN_CRLF = Pattern.compile("([\\n\\r]+)");
 
     /**
      * Wrap the elements in the sequence with the given tag
@@ -432,7 +463,7 @@ public class DiffRowGenerator {
      * @param cssClass the optional css class
      */
     public static LinkedList<String> wrapInTag(LinkedList<String> sequence, int startPosition, int endPosition,
-    		String tag, String cssClass) {
+            String tag, String cssClass) {
         LinkedList<String> result = (LinkedList<String>) sequence.clone();
         StringBuilder tagBuilder = new StringBuilder();
         tagBuilder.append("<");
@@ -443,17 +474,26 @@ public class DiffRowGenerator {
             tagBuilder.append("\"");
         }
         tagBuilder.append(">");
-        String startTag = tagBuilder.toString();
+        final String startTag = tagBuilder.toString();
 
         tagBuilder.delete(0, tagBuilder.length());
 
         tagBuilder.append("</");
         tagBuilder.append(tag);
         tagBuilder.append(">");
-        String endTag = tagBuilder.toString();
+        final String endTag = tagBuilder.toString();
 
         result.add(startPosition, startTag);
         result.add(endPosition, endTag);
+        final String joinTag = new StringBuilder(Matcher.quoteReplacement(endTag)).append("$1")
+                .append(Matcher.quoteReplacement(startTag)).toString();
+
+        for (int i = startPosition + 1; i < endPosition; ++i) {
+            final String val = result.get(i);
+            if (val.contains("\n") || val.contains("\r")) {
+                result.set(i, PATTERN_CRLF.matcher(val).replaceAll(joinTag));
+            }
+        }
         return result;
     }
 
@@ -465,7 +505,7 @@ public class DiffRowGenerator {
      * @return the wrapped string
      */
     public static String wrapInTag(String line, String tag, String cssClass) {
-        StringBuilder tagBuilder = new StringBuilder();
+        final StringBuilder tagBuilder = new StringBuilder();
         tagBuilder.append("<");
         tagBuilder.append(tag);
         if (cssClass != null) {
@@ -474,15 +514,18 @@ public class DiffRowGenerator {
             tagBuilder.append("\"");
         }
         tagBuilder.append(">");
-        String startTag = tagBuilder.toString();
+        final String startTag = tagBuilder.toString();
 
         tagBuilder.delete(0, tagBuilder.length());
 
         tagBuilder.append("</");
         tagBuilder.append(tag);
         tagBuilder.append(">");
-        String endTag = tagBuilder.toString();
+        final String endTag = tagBuilder.toString();
 
-        return startTag + line + endTag;
+        final String joinTag = new StringBuilder(Matcher.quoteReplacement(endTag)).append("$1")
+                .append(Matcher.quoteReplacement(startTag)).toString();
+
+        return startTag + PATTERN_CRLF.matcher(line).replaceAll(joinTag) + endTag;
     }
 }
