@@ -9,9 +9,6 @@ description = """java-diff-utils"""
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
-configurations.all {
-}
-
 repositories {
         
      maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
