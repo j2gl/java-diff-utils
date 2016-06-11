@@ -15,10 +15,14 @@
  */
 package difflib;
 
+import java.nio.charset.Charset;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
-public class StringUtills {
+public class Utils {
+    public static Charset UTF_8 = Charset.forName("UTF-8");
+
     /**
      * Replaces all tabs with 4 spaces.
      * @param str The string.
@@ -27,7 +31,7 @@ public class StringUtills {
     public static String expandTabs(String str) {
         return str.replace("\t", "    ");
     }
-    
+
     /**
      * Replaces all opening an closing tags with <code>&lt;</code> or <code>&gt;</code>.
      * @param str
@@ -36,11 +40,11 @@ public class StringUtills {
     public static String htmlEntites(String str) {
         return str.replace("<", "&lt;").replace(">", "&gt;");
     }
-    
+
     public static String normalize(String str) {
         return expandTabs(htmlEntites(str));
     }
-    
+
     public static List<String> normalize(List<String> list) {
         List<String> result = new LinkedList<String>();
         for (String line : list) {
@@ -48,7 +52,7 @@ public class StringUtills {
         }
         return result;
     }
-    
+
     public static List<String> wrapText(List<String> list, int columnWidth) {
         List<String> result = new LinkedList<String>();
         for (String line : list) {
@@ -56,10 +60,10 @@ public class StringUtills {
         }
         return result;
     }
-    
+
     /**
-     * Wrap the text with the given column width 
-     * @param line the text
+     * Wrap the text with the given column width
+     * @param line        the text
      * @param columnWidth the given column
      * @return the wrapped text
      */
@@ -67,13 +71,29 @@ public class StringUtills {
         int lenght = line.length();
         int delimiter = "<br>".length();
         int widthIndex = columnWidth;
-        
+
         for (int count = 0; lenght > widthIndex; count++) {
             line = line.subSequence(0, widthIndex + delimiter * count) + "<br>"
                     + line.substring(widthIndex + delimiter * count);
             widthIndex += columnWidth;
         }
-        
+
         return line;
+    }
+
+    /**
+     * Join a list of strings using a specified separator.
+     * @param strList List of strings.
+     * @param sep     String to put between items when joining.
+     * @return Joined string.
+     */
+    static String join(List<String> strList, String sep) {
+        StringBuilder builder = new StringBuilder();
+        for (final Iterator<String> i = strList.iterator(); i.hasNext(); ) {
+            final String s = i.next();
+            builder.append(s);
+            if (i.hasNext()) builder.append(sep);
+        }
+        return builder.toString();
     }
 }

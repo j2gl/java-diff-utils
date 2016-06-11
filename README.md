@@ -2,9 +2,13 @@ A fork of [java-diff-utils](https://code.google.com/p/java-diff-utils/)
 
 # Changelog
 
+## 2.1.0
+
+- Removes the dependency on Guava
+
 ## 2.0.0
 
-- Change groupId and artifactId to prevent conflit with origin library: now 'com.github.java-diff-utils:java-diff-utils' instead of 'jp.skypencil.java-diff-utils:diffutils'
+- Change groupId and artifactId to prevent conflict with origin library: now 'com.github.java-diff-utils:java-diff-utils' instead of 'jp.skypencil.java-diff-utils:diffutils'
 - Adds the ability to differentiate the inserted and deleted tags and class-names in inline-diff
 - Default class-name is now `null` for deleted and inserted data, and "`change`" for change data
 - Default tag for deleted data is `del`

@@ -15,66 +15,48 @@
  */
 package difflib;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
+import javax.annotation.Nonnegative;
 import java.util.Arrays;
 import java.util.List;
 
-import javax.annotation.Nonnegative;
-
 /**
- * Holds the information about the part of text involved in the diff process
- * 
- * <p>
- * Text is represented as <code>Object[]</code> because the diff engine is
- * capable of handling more than plain ascci. In fact, arrays or lists of any
- * type that implements {@link java.lang.Object#hashCode hashCode()} and
- * {@link java.lang.Object#equals equals()} correctly can be subject to
- * differencing using this library.
- * </p>
- * 
- * @author <a href="dm.naumenko@gmail.com>Dmitry Naumenko</a>
+ * Holds the information about the part of text involved in the diff process <p> Text is represented as
+ * <code>Object[]</code> because the diff engine is capable of handling more than plain ascci. In fact, arrays or lists
+ * of any type that implements {@link java.lang.Object#hashCode hashCode()} and {@link java.lang.Object#equals equals()}
+ * correctly can be subject to differencing using this library. </p>
  * @param T The type of the compared elements in the 'lines'.
+ * @author <a href="dm.naumenko@gmail.com>Dmitry Naumenko</a>
  */
 public class Chunk<T> {
     @Nonnegative
     private final int position;
     private List<T> lines;
-    
+
     /**
      * Creates a chunk and saves a copy of affected lines
-     * 
-     * @param position
-     *            the start position
-     * @param lines
-     *            the affected lines
+     * @param position the start position
+     * @param lines    the affected lines
      */
     public Chunk(@Nonnegative int position, List<T> lines) {
-        checkArgument(position >= 0);
+        if (position < 0) throw new IllegalArgumentException();
         this.position = position;
         this.lines = lines;
     }
-    
+
     /**
      * Creates a chunk and saves a copy of affected lines
-     * 
-     * @param position
-     *            the start position (zero-based numbering)
-     * @param lines
-     *            the affected lines
+     * @param position the start position (zero-based numbering)
+     * @param lines    the affected lines
      */
     public Chunk(@Nonnegative int position, T[] lines) {
-        checkArgument(position >= 0);
+        if (position < 0) throw new IllegalArgumentException();
         this.position = position;
         this.lines = Arrays.asList(lines);
     }
-    
+
     /**
-     * Verifies that this chunk's saved text matches the corresponding text in
-     * the given sequence.
-     * 
-     * @param target
-     *            the sequence to verify against.
+     * Verifies that this chunk's saved text matches the corresponding text in the given sequence.
+     * @param target the sequence to verify against.
      */
     public void verify(List<T> target) throws PatchFailedException {
         if (last() > target.size()) {
@@ -87,7 +69,7 @@ public class Chunk<T> {
             }
         }
     }
-    
+
     /**
      * @return the start position of chunk in the text (zero-based numbering)
      */
@@ -111,7 +93,7 @@ public class Chunk<T> {
     public int size() {
         return lines.size();
     }
-    
+
     /**
      * Returns the index of the last line of the chunk. (zero-based numbering)
      */
@@ -119,7 +101,7 @@ public class Chunk<T> {
     public int last() {
         return getPosition() + size() - 1;
     }
-    
+
     /*
      * (non-Javadoc)
      * 
@@ -134,7 +116,7 @@ public class Chunk<T> {
         result = prime * result + size();
         return result;
     }
-    
+
     /*
      * (non-Javadoc)
      * 
@@ -158,10 +140,10 @@ public class Chunk<T> {
             return false;
         return true;
     }
-    
+
     @Override
     public String toString() {
         return "[position: " + position + ", size: " + size() + ", lines: " + lines + "]";
     }
-    
+
 }

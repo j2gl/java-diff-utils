@@ -15,15 +15,11 @@
  */
 package difflib;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Describes the diff row in form [tag, oldLine, newLine) for showing the
- * difference between two texts
- * 
+ * Describes the diff row in form [tag, oldLine, newLine) for showing the difference between two texts
  * @author <a href="dm.naumenko@gmail.com">Dmitry Naumenko</a>
  */
 public class DiffRow {
@@ -33,17 +29,17 @@ public class DiffRow {
     private String oldLine;
     @Nullable
     private String newLine;
-    
+
     public DiffRow(@Nonnull Tag tag, @Nullable String oldLine, @Nullable String newLine) {
-        this.tag = checkNotNull(tag);
+        this.tag = tag;
         this.oldLine = oldLine;
         this.newLine = newLine;
     }
-    
+
     public static enum Tag {
         INSERT, DELETE, CHANGE, EQUAL, SKIP
     }
-    
+
     /**
      * @return the tag
      */
@@ -51,14 +47,14 @@ public class DiffRow {
     public Tag getTag() {
         return tag;
     }
-    
+
     /**
      * @param tag the tag to set
      */
     public void setTag(Tag tag) {
         this.tag = tag;
     }
-    
+
     /**
      * @return the oldLine
      */
@@ -66,14 +62,14 @@ public class DiffRow {
     public String getOldLine() {
         return oldLine;
     }
-    
+
     /**
      * @param oldLine the oldLine to set
      */
     public void setOldLine(@Nullable String oldLine) {
         this.oldLine = oldLine;
     }
-    
+
     /**
      * @return the newLine
      */
@@ -81,14 +77,14 @@ public class DiffRow {
     public String getNewLine() {
         return newLine;
     }
-    
+
     /**
      * @param newLine the newLine to set
      */
     public void setNewLine(@Nullable String newLine) {
         this.newLine = newLine;
     }
-    
+
     /*
      * (non-Javadoc)
      * 
@@ -103,7 +99,7 @@ public class DiffRow {
         result = prime * result + ((tag == null) ? 0 : tag.hashCode());
         return result;
     }
-    
+
     /*
      * (non-Javadoc)
      * 
@@ -135,7 +131,7 @@ public class DiffRow {
             return false;
         return true;
     }
-    
+
     public String toString() {
         return "[" + this.tag + "," + this.oldLine + "," + this.newLine + "]";
     }

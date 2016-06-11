@@ -15,51 +15,32 @@
  */
 package difflib;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
-import com.google.common.collect.Lists;
-
 import difflib.DiffRow.Tag;
 import difflib.myers.Equalizer;
 import difflib.myers.MyersDiff;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
- * This class for generating DiffRows for side-by-sidy view.
- * You can customize the way of generating. For example, show inline diffs on not, ignoring
- * white spaces or/and blank lines and so on. All parameters for generating are optional. If you do
- * not specify them, the class will use the default values.
- *
- * These values are:
- * showInlineDiffs = false;
- * ignoreWhiteSpaces = true;
- * ignoreBlankLines = true;
- * ...
- *
+ * This class for generating DiffRows for side-by-sidy view. You can customize the way of generating. For example, show
+ * inline diffs on not, ignoring white spaces or/and blank lines and so on. All parameters for generating are optional.
+ * If you do not specify them, the class will use the default values.
+ * <p>
+ * These values are: showInlineDiffs = false; ignoreWhiteSpaces = true; ignoreBlankLines = true; ...
+ * <p>
  * For instantiating the DiffRowGenerator you should use the its builder. Like in example
- * 
- * <code>
- *    DiffRowGenerator generator = new DiffRowGenerator.Builder().showInlineDiffs(true).
- *      ignoreWhiteSpaces(true).columnWidth(100).build();
- * </code>
- *
+ * <p>
+ * <code> DiffRowGenerator generator = new DiffRowGenerator.Builder().showInlineDiffs(true).
+ * ignoreWhiteSpaces(true).columnWidth(100).build(); </code>
  * @author <a href="dm.naumenko@gmail.com">Dmitry Naumenko</a>
  */
 public class DiffRowGenerator {
     private static final String NEW_LINE = "\n";
-    private static final Joiner LF_JOINER = Joiner.on(NEW_LINE);
-    private static final Joiner JOINER = Joiner.on("");
+    private static final Pattern WS_PATTERN = Pattern.compile("\\s+");
 
     private static final String DEFAULT_TAG_DELETE = "del";
     private static final String DEFAULT_TAG_INSERT = "ins";
@@ -96,7 +77,6 @@ public class DiffRowGenerator {
     /**
      * This class used for building the DiffRowGenerator.
      * @author dmitry
-     *
      */
     public static class Builder {
         private boolean showInlineDiffs = false;
@@ -246,9 +226,8 @@ public class DiffRowGenerator {
         }
 
         /**
-         * Set the custom {@link DiffAlgorithm} to use while comparing the lines
-         * of the revisions.
-         * @param stringEqualizer to use (custom one)
+         * Set the custom {@link DiffAlgorithm} to use while comparing the lines of the revisions.
+         * @param diffAlgorithm to use (custom one)
          * @return builder with configured stringEqualizer
          */
         public Builder diffAlgorithm(DiffAlgorithm<String> diffAlgorithm) {
@@ -257,8 +236,8 @@ public class DiffRowGenerator {
         }
 
         /**
-         * Build the DiffRowGenerator using the default Equalizer for rows.
-         * If some parameters are not set, the default values are used.
+         * Build the DiffRowGenerator using the default Equalizer for rows. If some parameters are not set, the default
+         * values are used.
          * @return the customized DiffRowGenerator
          */
         public DiffRowGenerator build() {
@@ -288,49 +267,44 @@ public class DiffRowGenerator {
     }
 
     /**
-     * Get the DiffRows describing the difference between original and revised texts using the
-     * given patch. Useful for displaying side-by-side diff.
-     *
+     * Get the DiffRows describing the difference between original and revised texts using the given patch. Useful for
+     * displaying side-by-side diff.
      * @param original the original text
-     * @param revised the revised text
+     * @param revised  the revised text
      * @return the DiffRows between original and revised texts
      */
     public List<DiffRow> generateDiffRows(List<String> original, List<String> revised) {
         if (ignoreWhiteSpaces) {
-            Function<String, String> whiteSpaceReplacer = new Function<String, String>() {
-                @Override
-                public String apply(String string) {
-                    if (string == null) {
-                        return null;
-                    } else {
-                        return string.trim().replaceAll("\\s+", " ");
-                    }
-                }
-            };
-            original = Lists.transform(original, whiteSpaceReplacer);
-            revised = Lists.transform(revised, whiteSpaceReplacer);
+            replAllWs(original);
+            replAllWs(revised);
         }
         return generateDiffRows(original, revised, DiffUtils.diff(original, revised, diffAlgorithm));
     }
 
+    private void replAllWs(List<String> strList) {
+        for (final ListIterator<String> i = strList.listIterator(); i.hasNext(); ) {
+            final String s = i.next();
+            if (s != null) i.set(WS_PATTERN.matcher(s.trim()).replaceAll(" "));
+        }
+    }
+
     /**
-     * Generates the DiffRows describing the difference between original and revised texts using the
-     * given patch. Useful for displaying side-by-side diff.
-     *
+     * Generates the DiffRows describing the difference between original and revised texts using the given patch. Useful
+     * for displaying side-by-side diff.
      * @param original the original text
-     * @param revised the revised text
-     * @param patch the given patch
+     * @param revised  the revised text
+     * @param patch    the given patch
      * @return the DiffRows between original and revised texts
      */
     public List<DiffRow> generateDiffRows(List<String> original, List<String> revised, Patch<String> patch) {
         // normalize the lines (expand tabs, escape html entities)
-        original = StringUtills.normalize(original);
-        revised = StringUtills.normalize(revised);
+        original = Utils.normalize(original);
+        revised = Utils.normalize(revised);
 
         // wrap to the column width
         if (columnWidth > 0) {
-            original = StringUtills.wrapText(original, this.columnWidth);
-            revised = StringUtills.wrapText(revised, this.columnWidth);
+            original = Utils.wrapText(original, this.columnWidth);
+            revised = Utils.wrapText(revised, this.columnWidth);
         }
         List<DiffRow> diffRows = new ArrayList<DiffRow>();
         int orgEndPos = 0;
@@ -345,12 +319,12 @@ public class DiffRowGenerator {
             Chunk<String> rev = delta.getRevised();
 
             // We should normalize and wrap lines in deltas too.
-            orig.setLines(StringUtills.normalize(orig.getLines()));
-            rev.setLines(StringUtills.normalize(rev.getLines()));
+            orig.setLines(Utils.normalize(orig.getLines()));
+            rev.setLines(Utils.normalize(rev.getLines()));
 
             if (columnWidth > 0) {
-                orig.setLines(StringUtills.wrapText(orig.getLines(), this.columnWidth));
-                rev.setLines(StringUtills.wrapText(rev.getLines(), this.columnWidth));
+                orig.setLines(Utils.wrapText(orig.getLines(), this.columnWidth));
+                rev.setLines(Utils.wrapText(rev.getLines(), this.columnWidth));
             }
             // catch the equal prefix for each chunk
             copyEqualsLines(equalizer, diffRows, original, orgEndPos, orig.getPosition(), revised, revEndPos,
@@ -415,7 +389,7 @@ public class DiffRowGenerator {
     }
 
     private static final void addChangeDiffRow(Equalizer<String> equalizer, List<DiffRow> diffRows, String orgLine,
-            String revLine, String defaultString) {
+                                               String revLine, String defaultString) {
         boolean skipOrg = equalizer.skip(orgLine);
         boolean skipRev = equalizer.skip(revLine);
         if (skipOrg && skipRev) {
@@ -432,7 +406,8 @@ public class DiffRowGenerator {
     }
 
     protected void copyEqualsLines(Equalizer<String> equalizer, List<DiffRow> diffRows, List<String> original,
-            int originalStartPos, int originalEndPos, List<String> revised, int revisedStartPos, int revisedEndPos) {
+                                   int originalStartPos, int originalEndPos, List<String> revised, int revisedStartPos,
+                                   int revisedEndPos) {
         String[][] lines = new String[originalEndPos - originalStartPos][2];
         int idx = 0;
         for (String line : original.subList(originalStartPos, originalEndPos)) {
@@ -455,14 +430,13 @@ public class DiffRowGenerator {
 
     /**
      * Add the inline diffs for given delta
-     * 
      * @param delta the given delta
      */
     private void addInlineDiffs(Delta<String> delta) {
         List<String> orig = delta.getOriginal().getLines();
         List<String> rev = delta.getRevised().getLines();
-        LinkedList<String> origList = charArrayToStringList(LF_JOINER.join(orig).toCharArray());
-        LinkedList<String> revList = charArrayToStringList(LF_JOINER.join(rev).toCharArray());
+        LinkedList<String> origList = charArrayToStringList(Utils.join(orig, NEW_LINE).toCharArray());
+        LinkedList<String> revList = charArrayToStringList(Utils.join(rev, NEW_LINE).toCharArray());
 
         List<Delta<String>> inlineDeltas = DiffUtils.diff(origList, revList).getDeltas();
         Collections.reverse(inlineDeltas);
@@ -483,8 +457,8 @@ public class DiffRowGenerator {
             }
         }
 
-        delta.getOriginal().setLines(Arrays.asList(JOINER.join(origList).split(NEW_LINE)));
-        delta.getRevised().setLines(Arrays.asList(JOINER.join(revList).split(NEW_LINE)));
+        delta.getOriginal().setLines(Arrays.asList(Utils.join(origList, "").split(NEW_LINE)));
+        delta.getRevised().setLines(Arrays.asList(Utils.join(revList, "").split(NEW_LINE)));
     }
 
     private static final LinkedList<String> charArrayToStringList(char[] cs) {
@@ -500,12 +474,12 @@ public class DiffRowGenerator {
     /**
      * Wrap the elements in the sequence with the given tag
      * @param startPosition the position from which tag should start. The counting start from a zero.
-     * @param endPosition the position before which tag should should be closed.
-     * @param tag the tag name without angle brackets, just a word
-     * @param cssClass the optional css class
+     * @param endPosition   the position before which tag should should be closed.
+     * @param tag           the tag name without angle brackets, just a word
+     * @param cssClass      the optional css class
      */
     public static LinkedList<String> wrapInTag(LinkedList<String> sequence, int startPosition, int endPosition,
-            String tag, String cssClass) {
+                                               String tag, String cssClass) {
         LinkedList<String> result = (LinkedList<String>) sequence.clone();
         StringBuilder tagBuilder = new StringBuilder();
         tagBuilder.append("<");
@@ -528,7 +502,9 @@ public class DiffRowGenerator {
         result.add(startPosition, startTag);
         result.add(endPosition, endTag);
         final String joinTag = new StringBuilder(Matcher.quoteReplacement(endTag)).append("$1")
-                .append(Matcher.quoteReplacement(startTag)).toString();
+                                                                                  .append(Matcher
+                                                                                          .quoteReplacement(startTag))
+                                                                                  .toString();
 
         for (int i = startPosition + 1; i < endPosition; ++i) {
             final String val = result.get(i);
@@ -541,8 +517,8 @@ public class DiffRowGenerator {
 
     /**
      * Wrap the given line with the given tag
-     * @param line the given line
-     * @param tag the tag name without angle brackets, just a word
+     * @param line     the given line
+     * @param tag      the tag name without angle brackets, just a word
      * @param cssClass the optional css class
      * @return the wrapped string
      */
@@ -566,7 +542,9 @@ public class DiffRowGenerator {
         final String endTag = tagBuilder.toString();
 
         final String joinTag = new StringBuilder(Matcher.quoteReplacement(endTag)).append("$1")
-                .append(Matcher.quoteReplacement(startTag)).toString();
+                                                                                  .append(Matcher
+                                                                                          .quoteReplacement(startTag))
+                                                                                  .toString();
 
         return startTag + PATTERN_CRLF.matcher(line).replaceAll(joinTag) + endTag;
     }
