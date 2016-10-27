@@ -1,10 +1,9 @@
 apply plugin: 'java'
 apply plugin: 'maven'
 
-group = 'com.github.java-diff-utils'
+group = 'com.github'
+description = 'java-diff-utils'
 version = '2.1.1'
-
-description = """java-diff-utils"""
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
